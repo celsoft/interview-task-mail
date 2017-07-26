@@ -51,6 +51,11 @@ func process(path, pathType string) result {
 		}
 		defer resp.Body.Close()
 
+		if resp.StatusCode != http.StatusOK {
+			res.err = fmt.Errorf("response: %s", resp.Status)
+			return res
+		}
+
 		data, res.err = ioutil.ReadAll(resp.Body)
 	default:
 		res.err = fmt.Errorf("pathType: type %s isn't supported", pathType)
