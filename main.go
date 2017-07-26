@@ -20,60 +20,52 @@ type result struct {
 	err      error
 }
 
-// TODO: Write tests
-// Returns amount of word "Go" in string
-func goCounter(data string) (count int, err error) {
-	re, err := regexp.Compile("\\WGo\\W")
-	if err != nil {
-		return
-	}
-	count = len(re.FindAllString(data, -1))
-	return
-}
-
-// TODO: Write tests
 func process(path, pathType string) result {
 	var res result
 	if path == "" {
-		res.err = errors.New("path: invalid path")
+		res.err = errors.New("process: empty path")
 		return res
 	}
-	res.path = path
-	res.pathType = pathType
+
+	res = result{
+		path:     path,
+		pathType: pathType,
+	}
+
+	var data []byte
 	switch pathType {
 	case "file":
-		file, err := os.Open(res.path)
-		if err != nil {
-			res.err = err
+		var file *os.File
+		file, res.err = os.Open(res.path)
+		if res.err != nil {
 			return res
 		}
 		defer file.Close()
-		data, err := ioutil.ReadAll(file)
-		if err != nil {
-			res.err = err
-			return res
-		}
-		res.count, res.err = goCounter(string(data))
+
+		data, res.err = ioutil.ReadAll(file)
 	case "url":
-		resp, err := http.Get(path)
-		if err != nil {
-			res.err = err
+		var resp *http.Response
+		resp, res.err = http.Get(path)
+		if res.err != nil {
 			return res
 		}
 		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			res.err = err
-			return res
-		}
-		res.count, res.err = goCounter(string(body))
+
+		data, res.err = ioutil.ReadAll(resp.Body)
 	default:
-		res.err = errors.New("pathType: unknow type")
+		res.err = fmt.Errorf("pathType: type %s isn't supported", pathType)
 	}
+
+	if res.err == nil {
+		re, _ := regexp.Compile("\\WGo\\W")
+		res.count = len(re.FindAllString(string(data), -1))
+	}
+
 	return res
 }
 
 func main() {
+	help := "gocounter \"input\" -type url|file. "
 	var input string
 	var pathType = flag.String("type", "", "Specifies type of incoming pathes: file or url")
 	flag.Parse()
@@ -93,16 +85,22 @@ func main() {
 	} else {
 		// Read from console otherwise
 		if len(os.Args) < 4 {
-			fmt.Println("gocounter \"input\" -type url|file")
+			fmt.Println(help)
 			return
 		}
 		input = os.Args[1]
 		*pathType = os.Args[3]
 	}
 
+	if *pathType != "file" && *pathType != "url" {
+		fmt.Println(help)
+		return
+	}
+
+	results := make(chan result)
+
 	// Reads results and print to console
 	done := make(chan struct{})
-	results := make(chan result)
 	go func(results <-chan result, done chan<- struct{}) {
 		var total int
 		for result := range results {
@@ -127,11 +125,11 @@ func main() {
 
 		goroutines <- struct{}{}
 		wg.Add(1)
-		go func(path, pathType string, goroutines <-chan struct{}, wg *sync.WaitGroup) {
+		go func(path, pathType string, goroutines <-chan struct{}, results chan<- result, wg *sync.WaitGroup) {
 			results <- process(path, pathType)
 			<-goroutines
 			wg.Done()
-		}(path, *pathType, goroutines, &wg)
+		}(path, *pathType, goroutines, results, &wg)
 	}
 
 	wg.Wait()
