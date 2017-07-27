@@ -16,12 +16,12 @@ func Test_process(t *testing.T) {
 		Count    int
 	}
 	cases := []testCase{
-		{"/go", "url", false, 2},
+		{"/go", "url", false, 4},
 		{"/bad", "url", true, 0},
 		{"/", "url", false, 0},
 		{"/", "file", true, 0},
-		{"main_test.go", "file", false, 2},
-		{"main.go", "file", false, 0},
+		{"main_test.go", "file", false, 4},
+		{"main.go", "file", false, 1},
 		{"notexist.go", "file", true, 0},
 	}
 

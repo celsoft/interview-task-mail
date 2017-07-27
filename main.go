@@ -62,7 +62,7 @@ func process(path, pathType string) result {
 	}
 
 	if res.err == nil {
-		re, _ := regexp.Compile("\\WGo\\W")
+		re, _ := regexp.Compile("Go")
 		res.count = len(re.FindAllString(string(data), -1))
 	}
 
