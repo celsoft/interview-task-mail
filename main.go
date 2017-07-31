@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -68,8 +69,6 @@ func process(path, pathType string) result {
 }
 
 func main() {
-	help := "gocounter \"input\" -type url|file. "
-	var input []byte
 	var pathType = flag.String("type", "", "Specifies type of incoming pathes: file or url")
 	flag.Parse()
 
@@ -78,24 +77,12 @@ func main() {
 		log.Fatalf("Stdin.Stat(): %s", err)
 	}
 
-	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		// Read from stdin
-		input, err = ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			log.Fatalf("Failed to read from stdin: %s", err)
-		}
-	} else {
-		// Read from console otherwise
-		if len(os.Args) < 4 {
-			fmt.Println(help)
-			return
-		}
-		input = []byte(os.Args[1])
-		*pathType = os.Args[3]
+	if (stat.Mode() & os.ModeCharDevice) != 0 {
+		log.Fatal("gocounter accepts data only from stdin")
 	}
 
 	if *pathType != "file" && *pathType != "url" {
-		fmt.Println(help)
+		fmt.Println("gocounter -type url|file. ")
 		return
 	}
 
@@ -117,22 +104,19 @@ func main() {
 		done <- struct{}{}
 	}(results, done)
 
+	scanner := bufio.NewScanner(os.Stdin)
 	// Processes links
-	newline := []byte("\n")
 	var wg sync.WaitGroup
 	goroutines := make(chan struct{}, 5)
-	for index := bytes.Index(input, newline); index != -1; {
-		path := input[0:index]
-		input = input[index+1 : len(input)]
-		index = bytes.Index(input, newline)
-
+	for scanner.Scan() {
+		path := scanner.Text()
 		goroutines <- struct{}{}
 		wg.Add(1)
 		go func(path, pathType string, goroutines <-chan struct{}, results chan<- result, wg *sync.WaitGroup) {
 			results <- process(path, pathType)
 			<-goroutines
 			wg.Done()
-		}(string(path), *pathType, goroutines, results, &wg)
+		}(path, *pathType, goroutines, results, &wg)
 	}
 
 	wg.Wait()
