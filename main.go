@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -8,8 +9,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
-	"strings"
 	"sync"
 )
 
@@ -62,8 +61,7 @@ func process(path, pathType string) result {
 	}
 
 	if res.err == nil {
-		re, _ := regexp.Compile("Go")
-		res.count = len(re.FindAllString(string(data), -1))
+		res.count = bytes.Count(data, []byte("Go"))
 	}
 
 	return res
@@ -71,7 +69,7 @@ func process(path, pathType string) result {
 
 func main() {
 	help := "gocounter \"input\" -type url|file. "
-	var input string
+	var input []byte
 	var pathType = flag.String("type", "", "Specifies type of incoming pathes: file or url")
 	flag.Parse()
 
@@ -82,18 +80,17 @@ func main() {
 
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
 		// Read from stdin
-		bytes, err := ioutil.ReadAll(os.Stdin)
+		input, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			log.Fatalf("Failed to read from stdin: %s", err)
 		}
-		input = string(bytes)
 	} else {
 		// Read from console otherwise
 		if len(os.Args) < 4 {
 			fmt.Println(help)
 			return
 		}
-		input = os.Args[1]
+		input = []byte(os.Args[1])
 		*pathType = os.Args[3]
 	}
 
@@ -123,8 +120,9 @@ func main() {
 	// Processes links
 	var wg sync.WaitGroup
 	goroutines := make(chan struct{}, 5)
-	for _, path := range strings.Split(input, "\n") {
-		if path == "" {
+	for _, path := range bytes.Split(input, []byte("\n")) {
+		//for _, path := range strings.Split(input, "\n") {
+		if len(path) == 0 {
 			continue
 		}
 
@@ -134,7 +132,7 @@ func main() {
 			results <- process(path, pathType)
 			<-goroutines
 			wg.Done()
-		}(path, *pathType, goroutines, results, &wg)
+		}(string(path), *pathType, goroutines, results, &wg)
 	}
 
 	wg.Wait()
