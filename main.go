@@ -118,13 +118,13 @@ func main() {
 	}(results, done)
 
 	// Processes links
+	newline := []byte("\n")
 	var wg sync.WaitGroup
 	goroutines := make(chan struct{}, 5)
-	for _, path := range bytes.Split(input, []byte("\n")) {
-		//for _, path := range strings.Split(input, "\n") {
-		if len(path) == 0 {
-			continue
-		}
+	for index := bytes.Index(input, newline); index != -1; {
+		path := input[0:index]
+		input = input[index+1 : len(input)]
+		index = bytes.Index(input, newline)
 
 		goroutines <- struct{}{}
 		wg.Add(1)
