@@ -36,9 +36,6 @@ func process(path, pathType string) result {
 	switch pathType {
 	case "file":
 		reader, res.err = os.Open(res.path)
-		if res.err != nil {
-			return res
-		}
 	case "url":
 		var resp *http.Response
 		resp, res.err = http.Get(path)
@@ -48,7 +45,6 @@ func process(path, pathType string) result {
 
 		if resp.StatusCode != http.StatusOK {
 			res.err = fmt.Errorf("response: %s", resp.Status)
-			return res
 		}
 		reader = resp.Body
 	default:
