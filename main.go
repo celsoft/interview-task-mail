@@ -6,7 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -32,37 +32,41 @@ func process(path, pathType string) result {
 		pathType: pathType,
 	}
 
-	var data []byte
+	var reader io.ReadCloser
 	switch pathType {
 	case "file":
-		var file *os.File
-		file, res.err = os.Open(res.path)
+		reader, res.err = os.Open(res.path)
 		if res.err != nil {
 			return res
 		}
-		defer file.Close()
-
-		data, res.err = ioutil.ReadAll(file)
 	case "url":
 		var resp *http.Response
 		resp, res.err = http.Get(path)
 		if res.err != nil {
 			return res
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			res.err = fmt.Errorf("response: %s", resp.Status)
 			return res
 		}
-
-		data, res.err = ioutil.ReadAll(resp.Body)
+		reader = resp.Body
 	default:
 		res.err = fmt.Errorf("pathType: type %s isn't supported", pathType)
 	}
 
 	if res.err == nil {
-		res.count = bytes.Count(data, []byte("Go"))
+		defer reader.Close()
+		p := make([]byte, 2)
+		reader := bufio.NewReader(reader)
+		_, err := reader.Read(p)
+		for err == nil {
+			if bytes.Equal(p, []byte("Go")) {
+				res.count = res.count + 1
+			}
+			p[0] = p[1]
+			p[1], err = reader.ReadByte()
+		}
 	}
 
 	return res
